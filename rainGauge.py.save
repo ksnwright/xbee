@@ -1,0 +1,77 @@
+import serial
+import time
+
+def checkCheckSum(arr):
+        # input a XBee API frame with the checksum
+        check = sum(arr[3:])    # sum the bytes of the frame except frame
+                                # delimiter and length bytes (include checksum)
+        check = check & 255     # if the last eight bits of the sum equal 0xFF (255)
+        if check == 255:        # then the checksum is correct
+                return True
+        else:
+                return False
+
+def procRXDataSample(arr):
+	# input XBee frame with the checksum
+	# print('\tdigital sample mask: {0:16b}'.format(int.from_bytes(arr[16:18], "big")))	#debug
+	# print('\tdigital samples: {0:16b}'.format(int.from_bytes(arr[19:21], "big")))	# debug
+	DI3 = int.from_bytes(arr[16:18], "big") & int.from_bytes(arr[19:21], "big")
+	return DI3
+
+def calcCheckSum(arr):
+        # input a XBee API frame without the checksum
+        # represented as an array of bytes
+	check = sum(arr[3:])    # add up the individual bytes of the frame
+				# except the frame delimiter and the length bytes
+	check = check & 255     # keep only last eight bits
+	check = 255 - check     # subtract from 255
+	return arr + bytes([check])
+
+def bldRemoteATComm(ATCommand, parmString):	#build an AT command frame from the desired command and the parameters
+	# input the AT command and the parameters string eg. 'D0' and '4' for ATD04 command
+	arr = b'~'				# start with frame delimiter and length set to 0
+	arrLen = len(ATCommand) + len(parmString) + 13	# length field of frame; total len - delim, length, and check
+	arr = arr + bytes([arrLen >> 8, arrLen % 256])
+	arr = arr + b'\x17'				# frame type  17 hex
+	arr = arr + b'\04'				# frame id nonzero to get a response
+	arr = arr + b'\x00\x13\xa2\x00@\xa0\x96\xa1'	# 64 bit destination
+	arr = arr + b'\xff\xfe'				# 16 bit destination address - 0xFFFE for unknown
+	arr = arr + b'\x02'				# remote command option - 0x02 means apply changes
+	arr = arr + bytes(ATCommand,"utf-8")		# given AT command
+	if len(parmString) > 0:				# given parameters (if present)
+		arr = arr + parmString
+	arr = calcCheckSum(arr)				# add check sum to arr
+	print('\t\tRemoteATComm frame: ', arr)
+	return arr
+
+
+ser = serial.Serial('/dev/ttyUSB0', 9600)	#assume XBee connected to USB0
+ser.timeout=3600				# remote may take up to an hour to send data
+# ser.write(bldRemoteATComm('D0', b'\x05'))
+#ser.write(bldRemoteATComm('ATSD8', b'\x00'))
+xFrame = ser.read(4) 				# read frame delimiter, two length bytes and
+tipCount = 0
+						# frame type of an XBee frame
+while chr(xFrame[0]) == '~':
+	# print('frame len: ', int.from_bytes(xFrame[1:3], "big"))  # debugging
+	xFrame = xFrame + ser.read(int.from_bytes(xFrame[1:3], "big"))
+	if checkCheckSum(xFrame):
+		print("".join(["{}:".format(i) for i in time.localtime()[3:6] ]), 'Good frame rcvd: ', xFrame)
+		if 'x%02x'%xFrame[3] == 'x92':	# rcvd remote data sample
+			swState = procRXDataSample(xFrame)&8	# bit three of digital sample
+			print('\tswitch state: ', swState)
+			if swState == 8:
+				tipCount = tipCount + 1
+				print('TIPCOUNT: ', tipCount)
+				ser.write(bldRemoteATComm('D0',b'\x04'))	# clear latch
+#				time.sleep(.1)					# wait .1 second
+				ser.write(bldRemoteATComm('D0',b'\x05'))	# so latch operates next time
+			else:
+				ser.write(bldRemoteATComm('ATSM', b''))
+#				ser.write(bldRemoteATComm('%V',''))
+	else:
+		print('Bad frame: ', xFrame)
+	xFrame = ser.read(4)
+
+if chr(xFrame[0]) != '~':
+	print('bad frame recvd; first char not "~": ', xFrame[0:4])
