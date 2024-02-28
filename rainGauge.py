@@ -63,9 +63,6 @@ def configureLogging():
 	args = parser.parse_args()
 
     # Access the parsed arguments
-	# print(f"Log Level: {args.level}")
-	# print(f"Port: {args.port}")
-	# print(f"Filename: {args.filename}")
 	logging.basicConfig(filename=args.filename, level=args.level, filemode='a', 
 						format='%(asctime)s:%(levelname)s:%(message)s')
 
