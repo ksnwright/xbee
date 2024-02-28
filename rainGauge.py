@@ -2,6 +2,7 @@
 import serial
 import time
 import logging
+import argparse
 
 def checkCheckSum(arr):
 	"""Return whether the checksum of an API frame is valid."""
@@ -49,12 +50,31 @@ def bldRemoteATComm(ATCommand, parmString, disableACK):
 	logging.info('RemoteATComm frame: '+arr.hex())
 	return arr
 
+def configureLogging():
+	"""Get configuration values for logging and an optional port to read the port to which the XBee is attached """
+	parser = argparse.ArgumentParser(description="Custom argument parser")
+    
+    # Add arguments
+	parser.add_argument("--level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                        default="INFO", help="Log level (choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')")
+	parser.add_argument("--port", type=str, default="/dev/ttyUSB0", help="Port number as a string")
+	parser.add_argument("filename", help="Path to the file")
+    
+	args = parser.parse_args()
+
+    # Access the parsed arguments
+	# print(f"Log Level: {args.level}")
+	# print(f"Port: {args.port}")
+	# print(f"Filename: {args.filename}")
+	logging.basicConfig(filename=args.filename, level=args.level, filemode='a', 
+						format='%(asctime)s:%(levelname)s:%(message)s')
+
+	return args.port
 
 if __name__ == "__main__":
-	logging.basicConfig(filename='rainGauge.log', level=logging.INFO, filemode='a', 
-						format='%(asctime)s:%(levelname)s:%(message)s')
+	port = configureLogging()
 	logging.info('rainGauge started: ')
-	ser = serial.Serial('/dev/ttyUSB0', 9600)	#assume XBee connected to USB0
+	ser = serial.Serial(port, 9600)	# default XBee connected to USB0 can be changed on command line
 	ser.timeout=86400					# remote may take up to an day to send data
 	tipCount = 0
 
