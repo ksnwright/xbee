@@ -53,6 +53,7 @@ def bldRemoteATComm(ATCommand, parmString, disableACK):
 if __name__ == "__main__":
 	logging.basicConfig(filename='rainGauge.log', level=logging.INFO, filemode='a', 
 						format='%(asctime)s:%(levelname)s:%(message)s')
+	logging.info('rainGauge started: ')
 	ser = serial.Serial('/dev/ttyUSB0', 9600)	#assume XBee connected to USB0
 	ser.timeout=86400					# remote may take up to an day to send data
 	tipCount = 0
