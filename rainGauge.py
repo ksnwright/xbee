@@ -71,22 +71,21 @@ def configureLogging():
 if __name__ == "__main__":
 	port = configureLogging()
 	logging.info('rainGauge started: ')
-	ser = serial.Serial(port, 9600)	# default XBee connected to USB0 can be changed on command line
-	ser.timeout=86400					# remote may take up to an day to send data
+	ser = serial.Serial(port, 9600)	# default XBee connection to USB0 can be changed on command line
+	ser.timeout=86400					# remote may take up to a day to send data
 	tipCount = 0
 
 	while True:
-		xFrame = ser.read(4)
+		xFrame = ser.read(4)			# read header of frame.  Starts with a ~ and contains number of bytes in frame
 		if len(xFrame) == 0:			#probably means ser.read timed out
 			break
-		if chr(xFrame[0]) != '~':		#probably means we caught the tail-end of a frame
+		if chr(xFrame[0]) != '~':		#probably means we caught the tail-end of a frame. skip and read another
 			logging.info('Bad frame rcvd; first char not "~": '+xFrame.hex())
 			continue
 		logging.debug('frame len: ', int.from_bytes(xFrame[1:3], "big"))  # debugging
-		xFrame = xFrame + ser.read(int.from_bytes(xFrame[1:3], "big"))
-		if checkCheckSum(xFrame):
+		xFrame = xFrame + ser.read(int.from_bytes(xFrame[1:3], "big"))	# read rest of frame
+		if checkCheckSum(xFrame):		# if we got a valid frame process a tip or a timed status report
 			logging.info('Good frame rcvd: ' + xFrame.hex())
-			#print("".join(["{}:".format(i) for i in time.localtime()[3:6] ]), 'Good frame rcvd: ', xFrame)
 			if 'x%02x'%xFrame[3] == 'x92':	# rcvd remote data sample
 				swState = procRXDataSample(xFrame)&8	# bit three of digital sample
 				logging.debug('\tswitch state: ', swState)
